@@ -28,7 +28,7 @@ subprojects {
     pluginManager.withPlugin("com.vanniktech.maven.publish") {
         configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
             coordinates(project.group.toString(), project.name, project.version.toString())
-            if (properties.contains("signing.keyId")) {
+            if (System.getenv("ORG_GRADLE_PROJECT_signing.keyId") != null) {
                 publishToMavenCentral()
                 signAllPublications()
             }
