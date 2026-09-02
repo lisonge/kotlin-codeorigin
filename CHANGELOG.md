@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Restore explicit Gradle project properties in the release workflow so Maven Central publishing and signing tasks are registered reliably in CI.
+
 ## 0.2.0
 
 - Allow `declarationSourceOf<Type>()` and `declarationSourceOf(::reference)` to capture declarations
