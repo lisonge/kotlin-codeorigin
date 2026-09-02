@@ -39,16 +39,28 @@ public fun <T> evalSourceOf(expression: T): Pair<String, T> = codeOriginPluginRe
 /**
  * Returns the original source text of the declaration for [T].
  *
- * [T] must resolve to a class, interface, object, enum, or annotation class declared in the same
- * source file as this call. The compiler plugin replaces this call with a string constant.
+ * [T] must resolve to a class, interface, object, enum, or annotation class whose source is readable
+ * in the current compiler invocation. The declaration may be in another source file. The compiler
+ * plugin replaces this call with a string constant.
+ *
+ * Cross-file capture does not register an incremental dependency on the declaration's source text.
+ * Source-only changes may therefore leave a previously generated value stale, and some incremental
+ * compiler invocations may not expose the target source at all. Callers are responsible for forcing
+ * a clean or otherwise invalidated compilation when they require an up-to-date cross-file value.
  */
 public fun <T> declarationSourceOf(): String = codeOriginPluginRequired("declarationSourceOf")
 
 /**
  * Returns the original source text of the function or property referenced by [reference].
  *
- * The referenced declaration must belong to the same source file as this call. The compiler
- * plugin replaces this call with a string constant and does not evaluate [reference].
+ * The referenced declaration must have readable source in the current compiler invocation and may
+ * belong to another source file. The compiler plugin replaces this call with a string constant and
+ * does not evaluate [reference].
+ *
+ * Cross-file capture does not register an incremental dependency on the declaration's source text.
+ * Source-only changes may therefore leave a previously generated value stale, and some incremental
+ * compiler invocations may not expose the target source at all. Callers are responsible for forcing
+ * a clean or otherwise invalidated compilation when they require an up-to-date cross-file value.
  */
 @Suppress("UNUSED_PARAMETER")
 public fun <T> declarationSourceOf(reference: T): String =

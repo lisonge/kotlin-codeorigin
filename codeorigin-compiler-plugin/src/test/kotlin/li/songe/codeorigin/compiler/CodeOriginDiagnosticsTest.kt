@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
 import java.net.URLEncoder
+import java.net.URLClassLoader
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import kotlin.test.Test
@@ -18,6 +19,44 @@ class CodeOriginDiagnosticsTest {
         val exitCode: ExitCode,
         val diagnostics: String,
     )
+
+    @Test
+    fun capturesDeclarationsFromAnotherSourceFile() {
+        var classSource: String? = null
+        var functionSource: String? = null
+        val result = compileSources(
+            mapOf(
+                "Other.kt" to """
+                    package fixture
+
+                    data class OtherFileDeclaration(val value: Int)
+
+                    fun otherFileFunction(): Int = 1
+                """.trimIndent(),
+                "Capture.kt" to """
+                    package fixture
+
+                    import li.songe.codeorigin.declarationSourceOf
+
+                    val classSource: String = declarationSourceOf<OtherFileDeclaration>()
+                    val functionSource: String = declarationSourceOf(::otherFileFunction)
+                """.trimIndent(),
+            ),
+        ) { classesDirectory ->
+            URLClassLoader(
+                arrayOf(classesDirectory.toURI().toURL()),
+                javaClass.classLoader,
+            ).use { loader ->
+                val captureClass = loader.loadClass("fixture.CaptureKt")
+                classSource = captureClass.getMethod("getClassSource").invoke(null) as String
+                functionSource = captureClass.getMethod("getFunctionSource").invoke(null) as String
+            }
+        }
+
+        assertEquals(ExitCode.OK, result.exitCode, result.diagnostics)
+        assertEquals("data class OtherFileDeclaration(val value: Int)", classSource)
+        assertEquals("fun otherFileFunction(): Int = 1", functionSource)
+    }
 
     @Test
     fun rejectsInvalidNameAndCallSiteForms() {
@@ -67,11 +106,9 @@ class CodeOriginDiagnosticsTest {
             diagnostics,
         )
         assertTrue(
-            diagnostics.contains("declarationSourceOf requires a declaration from the same source file"),
-            diagnostics,
-        )
-        assertTrue(
-            diagnostics.contains("declarationSourceOf does not support declarations from another source file"),
+            diagnostics.contains(
+                "declarationSourceOf requires a declaration whose source is available in the current compilation"
+            ),
             diagnostics,
         )
         assertTrue(
@@ -142,7 +179,10 @@ class CodeOriginDiagnosticsTest {
         )
     }
 
-    private fun compileSources(sources: Map<String, String>): CompilationResult {
+    private fun compileSources(
+        sources: Map<String, String>,
+        verifyClasses: ((File) -> Unit)? = null,
+    ): CompilationResult {
         val directory = Files.createTempDirectory("codeorigin-diagnostics")
         return try {
             val sourceFiles = sources.map { (name, content) ->
@@ -166,10 +206,14 @@ class CodeOriginDiagnosticsTest {
                     "-P", "plugin:$CODEORIGIN_PLUGIN_ID:$PROJECT_ROOT_OPTION=$encodedRoot",
                 )
             }
-            CompilationResult(
+            val result = CompilationResult(
                 exitCode = exitCode,
                 diagnostics = output.toString(StandardCharsets.UTF_8),
             )
+            if (exitCode == ExitCode.OK) {
+                verifyClasses?.invoke(directory.resolve("classes").toFile())
+            }
+            result
         } finally {
             directory.toFile().deleteRecursively()
         }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0
+
+- Allow `declarationSourceOf<Type>()` and `declarationSourceOf(::reference)` to capture declarations
+  from another source file when its source is available in the current compilation.
+- Document the incremental-compilation limitations of cross-file declaration source capture.
+- Read Maven Central publishing and signing configuration from release environment variables.
+
 ## 0.1.0
 
 - Initial CodeOrigin public API and module layout.

@@ -8,7 +8,7 @@ CodeOrigin is a Kotlin compiler plugin for compile-time source introspection. It
 - `nameOf(...)` for rename-safe symbol names.
 - `sourceOf(...)` for the original text of an expression.
 - `evalSourceOf(...)` for the original text and evaluated value of an expression.
-- `declarationSourceOf(...)` for declarations in the same source file.
+- `declarationSourceOf(...)` for readable declarations in the current compilation.
 - `@CallSite` for injecting caller location data into omitted default parameters.
 
 All transformations happen in Kotlin IR and work without runtime reflection. Expressions passed to
@@ -149,8 +149,9 @@ when both its value and source text are needed.
 ## `declarationSourceOf`
 
 `declarationSourceOf<T>()` captures the complete source text of a class, interface, object, enum,
-or annotation class declared in the same source file as the call. The reference overload accepts
-a function or property reference:
+or annotation class whose source is readable in the current compiler invocation. The declaration
+may be in the same source file or another one. The reference overload accepts a function or
+property reference:
 
 ```kotlin
 declarationSourceOf<User>()
@@ -159,11 +160,19 @@ declarationSourceOf(User::displayName)
 ```
 
 The reference expression is not evaluated. Leading KDoc and use-site annotations are included.
-Common indentation and leading or trailing whitespace are removed, and line endings are normalized to LF. To keep generated constants correct during
-incremental compilation, both overloads require the declaration and call to share a source file.
-Declarations from another source file, constructor references, generated declarations without
-readable source, and non-reference arguments produce compiler errors. The plugin does not use
-cross-file metadata or runtime reflection.
+Common indentation and leading or trailing whitespace are removed, and line endings are normalized
+to LF.
+
+Cross-file capture is best effort under incremental compilation. It does not register an
+incremental dependency on the target declaration's source text, so source-only changes such as
+KDoc, comments, whitespace, or a non-inline function body may not recompile the call site and can
+leave a previously generated string stale. Some incremental compiler invocations may also omit the
+unchanged target source from the available IR. If an up-to-date cross-file value is required, the
+build must force a clean/full compilation or provide its own invalidation mechanism.
+
+Declarations whose source is unavailable in the current compilation, constructor references,
+generated declarations without readable source, and non-reference arguments produce compiler
+errors. The plugin does not package source metadata or use runtime reflection.
 
 ## `@CallSite`
 

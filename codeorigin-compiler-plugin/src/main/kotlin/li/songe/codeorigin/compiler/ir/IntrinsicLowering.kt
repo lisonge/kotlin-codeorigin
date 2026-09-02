@@ -162,14 +162,7 @@ internal class IntrinsicLowering(
                 diagnostics.report(
                     file,
                     expression,
-                    "declarationSourceOf requires a declaration from the same source file",
-                )
-                ""
-            } else if (declarationFile !== file) {
-                diagnostics.report(
-                    file,
-                    expression,
-                    "declarationSourceOf does not support declarations from another source file",
+                    "declarationSourceOf requires a declaration whose source is available in the current compilation",
                 )
                 ""
             } else {
