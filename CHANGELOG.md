@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3
+
+- Move all Maven artifacts to the `li.songe.codeorigin` group. Update API dependencies to
+  `li.songe.codeorigin:codeorigin:0.2.3`.
+- Keep the Gradle plugin ID and Kotlin package names unchanged. The Gradle plugin now resolves
+  its compiler plugin from the new group; new releases are no longer published under `li.songe`.
+
 ## 0.2.2
 
 - Capture source snapshots and type names during FIR analysis so edits during compilation cannot

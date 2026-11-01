@@ -47,9 +47,9 @@ fun example(user: User) {
 
 | Gradle module                  | Published artifact                    | Purpose                   |
 | ------------------------------ | ------------------------------------- | ------------------------- |
-| `codeorigin`                   | `li.songe:codeorigin`                 | Multiplatform public API  |
-| `codeorigin-compiler-plugin`   | `li.songe:codeorigin-compiler-plugin` | K2 compiler plugin        |
-| `codeorigin-gradle-plugin`     | `li.songe:codeorigin-gradle-plugin`   | Kotlin Gradle integration |
+| `codeorigin`                   | `li.songe.codeorigin:codeorigin`                 | Multiplatform public API  |
+| `codeorigin-compiler-plugin`   | `li.songe.codeorigin:codeorigin-compiler-plugin` | K2 compiler plugin        |
+| `codeorigin-gradle-plugin`     | `li.songe.codeorigin:codeorigin-gradle-plugin`   | Kotlin Gradle integration |
 | `codeorigin-integration-tests` | not published                         | End-to-end JVM tests      |
 
 The public functions, annotation, and `SourceLocation` type all use the
@@ -63,7 +63,7 @@ The public functions, annotation, and `SourceLocation` type all use the
 codeorigin = "<version>"
 
 [libraries]
-codeorigin = { module = "li.songe:codeorigin", version.ref = "codeorigin" }
+codeorigin = { module = "li.songe.codeorigin:codeorigin", version.ref = "codeorigin" }
 
 [plugins]
 codeorigin = { id = "li.songe.codeorigin", version.ref = "codeorigin" }
