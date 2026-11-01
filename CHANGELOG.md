@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2
+
+- Capture source snapshots and type names during FIR analysis so edits during compilation cannot
+  corrupt `nameOf`, `sourceOf`, `evalSourceOf`, or `declarationSourceOf` results.
+- Preserve type aliases, including calls through an imported alias of `nameOf`, without rereading
+  source files from disk.
+- Add LightTree and PSI regression tests that rewrite source files between frontend analysis and IR lowering.
+- Append `-SNAPSHOT` to local build versions when the `CI` environment variable is absent.
+
 ## 0.2.1
 
 - Restore explicit Gradle project properties in the release workflow so Maven Central publishing and signing tasks are registered reliably in CI.

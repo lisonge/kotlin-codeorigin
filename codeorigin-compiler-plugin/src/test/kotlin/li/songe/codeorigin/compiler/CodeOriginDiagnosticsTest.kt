@@ -10,6 +10,8 @@ import java.net.URLEncoder
 import java.net.URLClassLoader
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -179,8 +181,112 @@ class CodeOriginDiagnosticsTest {
         )
     }
 
+    @Test
+    fun preservesParsedNamesAndSourcesWhenDiskContentsChange() {
+        verifySourceSnapshot(reformat = false)
+    }
+
+    @Test
+    fun preservesParsedNamesAndSourcesWhenDiskOffsetsChange() {
+        verifySourceSnapshot(reformat = true)
+    }
+
+    private fun verifySourceSnapshot(reformat: Boolean) {
+        val declaration = "/** Original declaration. */\ndata class OriginalName(val value: Int)"
+        val sources = mapOf(
+            "Declaration.kt" to "package fixture\n\n$declaration",
+            "Capture.kt" to """
+                package fixture
+
+                import li.songe.codeorigin.nameOf
+                import li.songe.codeorigin.nameOf as symbolName
+                import li.songe.codeorigin.sourceOf
+                import li.songe.codeorigin.evalSourceOf
+                import li.songe.codeorigin.declarationSourceOf
+
+                typealias OriginalAlias = OriginalName
+                typealias AliasChain = OriginalAlias
+                class Container { class Nested }
+                class `when`
+
+                fun <T> parameterName(): String = nameOf<T>()
+                fun originalFunction(): Int = 1
+
+                fun capture(): List<String> {
+                    var counter = 0
+                    val source = sourceOf(counter++)
+                    val evaluated = evalSourceOf(counter++)
+                    return listOf(
+                        nameOf<OriginalName>(),
+                        nameOf<OriginalAlias>(),
+                        nameOf<AliasChain>(),
+                        nameOf<fixture.Container.Nested>(),
+                        nameOf<`when`>(),
+                        symbolName<OriginalAlias>(),
+                        nameOf<List<OriginalAlias>>(),
+                        nameOf<OriginalAlias?>(),
+                        parameterName<String>(),
+                        nameOf(counter),
+                        source,
+                        evaluated.first,
+                        evaluated.second.toString(),
+                        counter.toString(),
+                        declarationSourceOf<OriginalName>(),
+                        declarationSourceOf(::originalFunction),
+                    )
+                }
+            """.trimIndent(),
+        )
+        val replacements = sources.mapValues { (_, source) ->
+            val changed = source.replace("OriginalName", "ModifiedName")
+                .replace("OriginalAlias", "ModifiedAlias")
+                .replace("counter++", "counter--")
+                .replace("originalFunction", "modifiedFunction")
+                .replace("Original declaration", "Modified declaration")
+            if (reformat) "// Inserted after frontend analysis.\n" + changed.prependIndent("    ")
+            else changed
+        }
+        // Both the light-tree and PSI frontend must use the text they actually parsed.
+        for (useLightTree in listOf(true, false)) {
+            var captured: Any? = null
+            val result = compileSources(sources, replacements, useLightTree) { classesDirectory ->
+                URLClassLoader(arrayOf(classesDirectory.toURI().toURL()), javaClass.classLoader).use { loader ->
+                    captured = loader.loadClass("fixture.CaptureKt").getMethod("capture").invoke(null)
+                }
+            }
+            assertEquals(ExitCode.OK, result.exitCode, result.diagnostics)
+            assertEquals(
+                listOf(
+                    "OriginalName", "OriginalAlias", "AliasChain", "Nested", "when", "OriginalAlias",
+                    "List", "OriginalAlias", "T", "counter", "counter++", "counter++", "0", "1",
+                    declaration, "fun originalFunction(): Int = 1",
+                ),
+                captured,
+                "reformat=$reformat, useLightTree=$useLightTree",
+            )
+        }
+    }
+
+    private fun sourceMutationPlugin(directory: File): File {
+        val jar = directory.resolve("source-mutation.jar")
+        JarOutputStream(jar.outputStream()).use { output ->
+            for (type in listOf(SourceMutationRegistrar::class.java, SourceMutationExtension::class.java)) {
+                val resource = type.name.replace('.', '/') + ".class"
+                output.putNextEntry(JarEntry(resource))
+                type.classLoader.getResourceAsStream(resource)!!.use { it.copyTo(output) }
+                output.closeEntry()
+            }
+            output.putNextEntry(JarEntry("META-INF/services/org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar"))
+            output.write(SourceMutationRegistrar::class.java.name.toByteArray(StandardCharsets.UTF_8))
+            output.closeEntry()
+        }
+        return jar
+    }
+
     private fun compileSources(
         sources: Map<String, String>,
+        replacements: Map<String, String> = emptyMap(),
+        useLightTree: Boolean = true,
         verifyClasses: ((File) -> Unit)? = null,
     ): CompilationResult {
         val directory = Files.createTempDirectory("codeorigin-diagnostics")
@@ -188,6 +294,11 @@ class CodeOriginDiagnosticsTest {
             val sourceFiles = sources.map { (name, content) ->
                 directory.resolve(name).also { Files.writeString(it, content) }
             }
+            replacements.forEach { (name, content) ->
+                Files.writeString(directory.resolve("$name.replacement"), content)
+            }
+            val mutationPlugin = if (replacements.isEmpty()) emptyArray() else
+                arrayOf("-Xplugin=${sourceMutationPlugin(directory.toFile())}")
             val pluginJar = System.getProperty("codeorigin.compiler.jar")
             val apiJar = SourceLocation::class.java.protectionDomain.codeSource.location.toURI().let(::File)
             val stdlibJar = Unit::class.java.protectionDomain.codeSource.location.toURI().let(::File)
@@ -202,7 +313,9 @@ class CodeOriginDiagnosticsTest {
                     *sourceFiles.map { it.toString() }.toTypedArray(),
                     "-d", directory.resolve("classes").toString(),
                     "-classpath", listOf(apiJar, stdlibJar).joinToString(File.pathSeparator),
+                    *mutationPlugin,
                     "-Xplugin=$pluginJar",
+                    "-Xuse-fir-lt=$useLightTree",
                     "-P", "plugin:$CODEORIGIN_PLUGIN_ID:$PROJECT_ROOT_OPTION=$encodedRoot",
                 )
             }
@@ -211,6 +324,10 @@ class CodeOriginDiagnosticsTest {
                 diagnostics = output.toString(StandardCharsets.UTF_8),
             )
             if (exitCode == ExitCode.OK) {
+                replacements.forEach { (name, content) ->
+                    assertTrue(Files.exists(directory.resolve("$name.mutated")), "mutation plugin did not run")
+                    assertEquals(content, Files.readString(directory.resolve(name)))
+                }
                 verifyClasses?.invoke(directory.resolve("classes").toFile())
             }
             result

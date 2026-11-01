@@ -2,6 +2,7 @@ package li.songe.codeorigin.compiler.ir
 
 import li.songe.codeorigin.compiler.PAIR_CLASS_ID
 import li.songe.codeorigin.compiler.source.SourceRepository
+import li.songe.codeorigin.compiler.source.SourceSnapshots
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.ir.builders.irCallConstructor
@@ -23,11 +24,11 @@ import org.jetbrains.kotlin.ir.types.classifierOrNull
 
 internal class IntrinsicLowering(
     private val pluginContext: IrPluginContext,
-    projectRoot: String,
     private val moduleFiles: Set<IrFile>,
     private val diagnostics: CodeOriginDiagnostics,
+    private val snapshots: SourceSnapshots,
 ) {
-    private val sourceRepository = SourceRepository(projectRoot)
+    private val sourceRepository = SourceRepository(snapshots)
     private var pairConstructor: IrConstructorSymbol? = null
 
     private val stringType get() = pluginContext.irBuiltIns.stringType
@@ -36,8 +37,7 @@ internal class IntrinsicLowering(
         val regularParameters = expression.symbol.owner.parameters
             .filter { it.kind == IrParameterKind.Regular }
         val name = if (regularParameters.isEmpty()) {
-            val source = file?.let { sourceRepository.slice(it, expression).getOrNull() }
-            NameResolver.resolveType(expression, source)
+            snapshots.typeName(expression, file) ?: NameResolver.resolveType(expression)
         } else {
             val argumentIndex = expression.symbol.owner.parameters.indexOf(regularParameters.single())
             expression.arguments[argumentIndex]?.let(NameResolver::resolve)

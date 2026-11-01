@@ -1,6 +1,5 @@
 package li.songe.codeorigin.compiler.ir
 
-import li.songe.codeorigin.compiler.source.KotlinSourceLexer
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationWithName
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
@@ -30,51 +29,10 @@ internal object NameResolver {
         else -> null
     }
 
-    fun resolveType(call: IrCall, callSource: String?): String? {
-        callSource?.let(::typeNameFromCall)?.let { return it }
+    fun resolveType(call: IrCall): String? {
         return (call.typeArguments.firstOrNull()?.classifierOrNull?.owner as? IrDeclarationWithName)
             ?.name
             ?.sourceName()
-    }
-
-    private fun typeNameFromCall(source: String): String? {
-        val tokens = KotlinSourceLexer.tokenize(source).filterNot { token ->
-            token.kind == KotlinSourceLexer.Kind.Trivia ||
-                token.kind == KotlinSourceLexer.Kind.Documentation
-        }
-        val functionName = tokens.indexOfFirst { token ->
-            token.kind == KotlinSourceLexer.Kind.Identifier && token.text(source) == "nameOf"
-        }
-        if (functionName < 0) return null
-        val open = (functionName + 1 until tokens.size)
-            .firstOrNull { tokens[it].kind == KotlinSourceLexer.Kind.Less }
-            ?: -1
-        if (open < 0) return null
-
-        var depth = 1
-        var closed = false
-        val outerTypeTokens = mutableListOf<KotlinSourceLexer.Token>()
-        for (index in open + 1 until tokens.size) {
-            val token = tokens[index]
-            when (token.kind) {
-                KotlinSourceLexer.Kind.Less -> depth++
-                KotlinSourceLexer.Kind.Greater -> {
-                    depth--
-                    if (depth == 0) {
-                        closed = true
-                        break
-                    }
-                }
-                else -> if (depth == 1) outerTypeTokens += token
-            }
-        }
-        if (!closed || outerTypeTokens.isEmpty()) return null
-        if (outerTypeTokens.first().kind == KotlinSourceLexer.Kind.LeftParenthesis) return null
-        if (outerTypeTokens.any { it.kind == KotlinSourceLexer.Kind.Arrow }) return null
-
-        return outerTypeTokens.lastOrNull { it.kind == KotlinSourceLexer.Kind.Identifier }
-            ?.text(source)
-            ?.removeSurrounding("`")
     }
 
     private fun isNamedReceiver(expression: IrExpression?): Boolean = when (expression) {

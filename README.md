@@ -125,9 +125,10 @@ check(count == 0)
 ```
 
 Internal whitespace, comments, and literal spelling are preserved. Leading and trailing
-whitespace is removed, and CRLF/CR line endings are normalized to LF. A generated or in-memory
-source file that cannot be read produces a compiler error instead of an empty or reconstructed
-expression.
+whitespace is removed, and CRLF/CR line endings are normalized to LF. Source text comes from the
+compiler's parsed source snapshot, so edits to the file during compilation do not change the captured
+text. A generated expression without an available compiler
+source snapshot produces a compiler error instead of an empty or reconstructed expression.
 
 `evalSourceOf` captures the same source text but also evaluates the expression exactly once. It
 returns a `Pair<String, T>` whose `first` value is the source text and whose `second` value is the
@@ -149,8 +150,8 @@ when both its value and source text are needed.
 ## `declarationSourceOf`
 
 `declarationSourceOf<T>()` captures the complete source text of a class, interface, object, enum,
-or annotation class whose source is readable in the current compiler invocation. The declaration
-may be in the same source file or another one. The reference overload accepts a function or
+or annotation class whose source snapshot is available in the current compiler invocation. The
+declaration may be in the same source file or another one. The reference overload accepts a function or
 property reference:
 
 ```kotlin
@@ -171,8 +172,8 @@ unchanged target source from the available IR. If an up-to-date cross-file value
 build must force a clean/full compilation or provide its own invalidation mechanism.
 
 Declarations whose source is unavailable in the current compilation, constructor references,
-generated declarations without readable source, and non-reference arguments produce compiler
-errors. The plugin does not package source metadata or use runtime reflection.
+generated declarations without a compiler source snapshot, and non-reference arguments produce
+compiler errors. The plugin does not package source metadata or use runtime reflection.
 
 ## `@CallSite`
 

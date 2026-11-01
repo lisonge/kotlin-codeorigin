@@ -4,18 +4,13 @@ import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.path
-import java.nio.file.Files
-import java.nio.file.InvalidPathException
 import java.nio.file.Path
 
 internal fun normalizedProjectRoot(projectRoot: String): Path? = projectRoot
     .takeIf { it.isNotBlank() }
     ?.let { runCatching { Path.of(it).toAbsolutePath().normalize() }.getOrNull() }
 
-internal class SourceRepository(projectRoot: String) {
-    private val root: Path? = normalizedProjectRoot(projectRoot)
-
-    private val sourceCache = HashMap<IrFile, String>()
+internal class SourceRepository(private val snapshots: SourceSnapshots) {
     private val tokenCache = HashMap<IrFile, List<KotlinSourceLexer.Token>>()
 
     fun slice(file: IrFile, element: IrElement): Result<String> {
@@ -95,31 +90,12 @@ internal class SourceRepository(projectRoot: String) {
     }
 
     private fun read(file: IrFile): Result<String> {
-        sourceCache[file]?.let { return Result.success(it) }
-
-        val path = resolve(file.path)
+        // FIR's syntax tree is the input that produced these IR offsets. Reopening the
+        // file here could combine new disk contents with positions from an older parse.
+        val source = snapshots.source(file)
             ?: return Result.failure(
-                IllegalStateException("source file is unavailable: ${file.path}")
+                IllegalStateException("compiler source snapshot is unavailable: ${file.path}")
             )
-        return runCatching { Files.readString(path) }
-            .onSuccess { sourceCache[file] = it }
-    }
-
-    private fun resolve(rawPath: String): Path? {
-        val path = try {
-            Path.of(rawPath)
-        } catch (_: InvalidPathException) {
-            return null
-        }
-
-        val candidates = buildList {
-            if (path.isAbsolute) {
-                add(path.normalize())
-            } else {
-                root?.let { add(it.resolve(path).normalize()) }
-                add(path.toAbsolutePath().normalize())
-            }
-        }
-        return candidates.distinct().firstOrNull { Files.isRegularFile(it) }
+        return Result.success(source)
     }
 }

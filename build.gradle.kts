@@ -11,7 +11,7 @@ plugins {
 
 allprojects {
     group = "li.songe"
-    version = "0.2.1"
+    version = "0.2.2" + if (!providers.environmentVariable("CI").isPresent) "-SNAPSHOT" else ""
 }
 
 subprojects {

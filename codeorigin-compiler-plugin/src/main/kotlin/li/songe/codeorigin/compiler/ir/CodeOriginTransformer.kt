@@ -5,6 +5,7 @@ import li.songe.codeorigin.compiler.EVAL_SOURCE_OF_FQ_NAME
 import li.songe.codeorigin.compiler.NAME_OF_FQ_NAME
 import li.songe.codeorigin.compiler.SOURCE_OF_FQ_NAME
 import li.songe.codeorigin.compiler.callsite.CallSiteLowering
+import li.songe.codeorigin.compiler.source.SourceSnapshots
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.ir.IrStatement
@@ -24,13 +25,14 @@ internal class CodeOriginTransformer(
     messageCollector: MessageCollector,
     projectRoot: String,
     moduleFiles: Set<IrFile>,
+    snapshots: SourceSnapshots,
 ) : IrElementTransformerVoid() {
     private val diagnostics = CodeOriginDiagnostics(messageCollector)
     private val intrinsicLowering = IntrinsicLowering(
         pluginContext,
-        projectRoot,
         moduleFiles,
         diagnostics,
+        snapshots,
     )
     private val callSiteLowering = CallSiteLowering(
         pluginContext,
